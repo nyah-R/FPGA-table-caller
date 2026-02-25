@@ -1,0 +1,81 @@
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
+
+entity BCDout is
+    port (
+        clk         : in  std_logic;
+        mesa_in     : in  std_logic_vector(3 downto 0);
+        modo_in     : in  std_logic;  -- '0'=fijo, '1'=parpadeo
+        refresh     : in  std_logic;  -- Pulso de sincronización desde FIFO
+        segmentos   : out std_logic_vector(0 to 13)
+    );
+end entity;
+
+architecture bhv of BCDout is
+    signal blink_state : std_logic := '0';
+    signal blink_counter : integer range 0 to 3 := 0;
+    signal parpadeo_timer : integer range 0 to 8333333 := 0; -- 0.33s @50MHz
+	 
+    function decode_bcd(num : std_logic_vector(3 downto 0)) return std_logic_vector is
+    begin
+        case num is
+            when "0001" => return "01100000000000"; -- 1
+            when "0010" => return "11011010000000"; -- 2
+            when "0011" => return "11110010000000"; -- 3
+            when "0100" => return "01100110000000"; -- 4
+            when "0101" => return "10110110000000"; -- 5
+            when "0110" => return "10111110000000"; -- 6
+            when "0111" => return "11100000000000"; -- 7
+            when "1000" => return "11111110000000"; -- 8
+            when "1001" => return "11110110000000"; -- 9
+            when "1010" => return "11111100110000"; -- A (10)
+            when "1011" => return "01100000110000"; -- B (11)
+            when "1100" => return "11011010110000"; -- C (12)
+            when "1101" => return "11110010110000"; -- D (13)
+            when "1110" => return "01100110110000"; -- E (14)
+            when "1111" => return "10110110110000"; -- F (15)
+            when others => return "00000010000001"; -- "--"
+        end case;
+    end function;
+	 
+	 
+begin
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            -- Reset de parpadeo cuando llega refresh
+            if refresh = '1' then
+                blink_counter <= 0;
+                blink_state <= '0';
+                parpadeo_timer <= 0;
+            end if;
+            
+            if modo_in = '0' then  -- Modo fijo
+                segmentos <= not decode_bcd(mesa_in);
+            else  -- Modo parpadeo (3 ciclos en 1s)
+                if blink_counter < 3 then
+                    -- Temporizador de 0.33s para parpadeo
+                    if parpadeo_timer < 8333333 then
+                        parpadeo_timer <= parpadeo_timer + 1;
+                    else
+                        parpadeo_timer <= 0;
+                        blink_state <= not blink_state;
+                        if blink_state = '1' then
+                            blink_counter <= blink_counter + 1;
+                        end if;
+                    end if;
+                    
+                    -- Control de segmentos
+                    if blink_state = '1' then
+                        segmentos <= not decode_bcd(mesa_in);
+                    else
+                        segmentos <= (others => '1');  -- Apagado
+                    end if;
+                else
+                    segmentos <= (others => '1');  -- Apagado después de 3 parpadeos
+                end if;
+            end if;
+        end if;
+    end process;  
+end architecture;
