@@ -1,0 +1,17 @@
+db/
+incremental_db/
+output_files/
+simulation/
+work/
+*.jic
+*.sof
+*.wlf
+*.qws
+*.bak
+*.rpt
+*.summary
+*.smsg
+*.done
+*.mpf
+*.mti
+transcript
